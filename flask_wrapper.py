@@ -66,7 +66,9 @@ def predict_from_image_file():
             filename = secure_filename(file.filename)
             # get the abs path of the file
             current_folder_path = os.path.dirname(os.path.abspath(__file__))
-            file_path = os.path.join(current_folder_path, app.config["UPLOAD_FOLDER"], filename)
+            file_path = os.path.join(
+                current_folder_path, app.config["UPLOAD_FOLDER"], filename
+            )
             file.save(file_path)
             print("File saved at: ", file_path)
             image = Image.open(file_path)

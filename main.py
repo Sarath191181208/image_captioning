@@ -8,7 +8,7 @@ from PIL import Image
 
 import streamlit as st
 
-from const import IMAGE_SIZE
+from const import IMAGE_SIZE, MAX_LENGTH
 from image import load_features_from_img
 from model_helper import (
     ModelName,
@@ -19,7 +19,6 @@ from caption import load_tokenizer
 
 model = load_captioning_model(ModelName.EARLY_STOPPED_MODEL)
 tokenizer = load_tokenizer()
-MAX_LENGTH = 34
 
 
 st.title("Image Captioning Using CNN's + LSTM's")

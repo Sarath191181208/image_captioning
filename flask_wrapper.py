@@ -1,10 +1,35 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+import os
+from PIL import Image
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash,
+)
+
+from const import IMAGE_SIZE, MAX_LENGTH, UPLOAD_FOLDER, ALLOWED_EXTENSIONS
+from image import load_features_from_img
+from model_helper import (
+    ModelName,
+    load_captioning_model,
+    predict_caption,
+)
+
+from caption import load_tokenizer
+
+print("Loadin the Captioning Model....")
+model = load_captioning_model(ModelName.EARLY_STOPPED_MODEL)
+print("Loadin the tokenizer....")
+tokenizer = load_tokenizer()
+
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 app.config["SECRET_KEY"] = "secret-key"
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
 db = SQLAlchemy(app)
 
 
@@ -17,8 +42,37 @@ class User(db.Model):
 @app.route("/")
 def home():
     if "username" in session:
-        return f'Welcome {session["username"]}!'
+        return render_template("index.html")
     return redirect(url_for("signin"))
+
+
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route("/predict", methods=["POST"])
+def predict_from_image_file():
+    if request.method == "POST":
+        if "file" not in request.files:
+            flash("No file part in the form!")
+            return redirect(request.url)
+
+        file = request.files["file"]
+        if file.filename == "":
+            flash("No file selected!")
+            return redirect(request.url)
+
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            # get the abs path of the file
+            current_folder_path = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(current_folder_path, app.config["UPLOAD_FOLDER"], filename)
+            file.save(file_path)
+            print("File saved at: ", file_path)
+            image = Image.open(file_path)
+            img_features = load_features_from_img(image, IMAGE_SIZE)
+            caption = predict_caption(model, img_features, tokenizer, MAX_LENGTH)
+            return render_template("index.html", caption=caption, image_path=filename)
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -61,6 +115,8 @@ def signin():
 
 
 if __name__ == "__main__":
+    print("Setting up the database ....")
     with app.app_context():
         db.create_all()
+    print("Starting the server in [ dev-mode ] ....")
     app.run(debug=True)
